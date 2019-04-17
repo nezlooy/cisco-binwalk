@@ -1,0 +1,129 @@
+#------------------------------------------------------------------------------
+# File: ~/.config/binwalk/magic/cisco_pkg
+# Author: @nezlooy
+#------------------------------------------------------------------------------
+
+#------------------------------------------------------------------------------
+# Cisco Package File (PKG)
+#
+# Format for the package will look like below -
+# +---------------------------------+
+# | Package Header					|
+# | Section 1						|
+# | Section 2						|
+# | .								|
+# | .								|
+# | Section N						|
+# +---------------------------------+
+# 
+# Digital signature will be the sign the checksum of package from package start
+# till the start of the section containing signature.
+#
+# Package Header
+# +---------------------------------+
+# | 0xC5C0 				(2 bytes)	|
+# | PKG_FORMAT_VERSION	(4 bytes)	|
+# | No of Sections 		(1 byte) 	|
+# | Format Type 		(1 byte) 	|
+# | Reserved 			(8 byte)	|
+# +---------------------------------+
+#
+# 	Section
+# +---------------------------------+
+# | Section Header					|
+# | Section Data					|
+# +---------------------------------+
+#
+# 	Section Header
+# +---------------------------------+
+# | Section Type	(1 byte)		|
+# | Section Name	(8 ASCII char)	|
+# | Data size 		(4 bytes)		|
+# +---------------------------------+
+# 
+# Section Type - COMPRESSED_ARCHIVE, DIGITAL_SIGN
+# 
+# Typical Package can have any type and any number of sections, we can have something
+# like below, for example
+# +---------------------------------------------------------------------------------+
+# | Package Header																	|
+# | Section 1 - Manifest (TBD: Some package info, dependency etc.)					|
+# | Section 2 - Tar compressed with bzip2 containing the installer scripts and data |
+# | Section 3 - Checksum or Digital Sign (Signed checksum)							|
+# +---------------------------------------------------------------------------------+
+# 
+# In future, with the multiple sections we can add a manifest with information like what
+# all platform this package can be installed that kind of information be embedded in a
+# dedicated section. We can evan have individual signing of sections so that don't have
+# to download whole package to get metadata.
+#
+# Package Header Format Types:
+#
+# 1. Basic Package - Describes the basic package, with just one section for data:
+# 
+# +---------------------------------------------------------------------------------+
+# | Package Header																	|
+# | Section 1 - Tar compressed with bzip2 containing the installer scripts and data	|
+# +---------------------------------------------------------------------------------+
+# 
+# This kind of reference implementations to start with a package, in future we will have
+# more complicated package, having checksum, digital sign and some meta data for actual
+# field use.
+# 
+# 2. Checksum Package - This is an extention of the Basic Package. Specifically, 
+# it adds checksum logic on top of the Basic Package.
+# 
+# +---------------------------------------------------------------------------------+
+# | Package Header																	|
+# | Section 1 - Tar compressed with bzip2 containing the installer scripts and data	|
+# | Section 2 - Contains checksum computed on the data contained in previous section|
+# +---------------------------------------------------------------------------------+
+# 
+# 3. Signed Checksum Package - This is an extention of the Checksum Package.
+# In this wrapper, checksum is signed instead.
+# 
+# +-----------------------------------------------------------------------------------------+
+# | Package Header																			|
+# | Section 1 - Tar compressed with bzip2 containing the installer scripts and data			|
+# | Section 2 - Contains signed checksum computed on the data contained in previous section	|
+# +-----------------------------------------------------------------------------------------+
+# 
+# Base Encrypted Content Checksum Package - This is an extention of the Basic Package. 
+# Specifically, it adds checksum logic on top of the Basic Package.
+# 
+# +---------------------------------------------------------------------------------+
+# | Package Header																	|
+# | Section 1 - Per package instance key encrypted with package shared key			|
+# | Section 2 - Contains checksum computed on the data contained in previous section|
+# | Section 3 - Tar compressed with bzip2 it will contain metadata in future		|
+# | Section 4 - Contains checksum computed on the data contained in previous section|
+# | Section 5 - Tar compressed with bzip2 containing the installer scripts and data	|
+# | Section 6 - Contains checksum computed on the data contained in previous section|
+# +---------------------------------------------------------------------------------+
+# 
+# Metadata section will be used to keep the scripts - setup.py, setup.conf etc. so that we can 
+# fetch those early without downloading whole package and tell user the package information early.
+# 
+# 4. Encrypted Content Checksum Package - Base Encrypted Content Checksum Package with plain 
+# checksum support.
+# 
+# 5. Encrypted Content Signed Checksum Package - Base Encrypted Content Checksum Package with 
+# signed checksum support
+# 
+
+0		ubelong			0xC0C50000			Cisco Package File,
+>9		byte			114					type: Base Package,
+>9		byte			115					type: Basic Package,
+>9		byte			116					type: Checksum Package,
+>9		byte			117					type: Signed Checksum Package,
+>9		byte			118					type: Encrypted Content Checksum Package,
+>9		byte			119					type: Encrypted Content Signed Checksum Package,
+>4		lelong			x					version: 0x%X,
+>8		byte			0					invalid number of sections,{invalid}
+>8		byte			x					num of sections: %d
+>10		string			!ignoreit			invalid ignore data{invalid}
+>10		string			ignoreit
+
+#>18		byte			x					First section ( type: 0x%X,
+#>19		string			x					name: "%s",
+#>30		lelong			x					size: %d )

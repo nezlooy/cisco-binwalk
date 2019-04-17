@@ -1,0 +1,147 @@
+#------------------------------------------------------------------------------
+# File: ~/.config/binwalk/magic/cisco_asa
+# Author: @nezlooy
+#------------------------------------------------------------------------------
+
+#------------------------------------------------------------------------------
+# Cisco ASA Image (MBR)
+#
+
+0		string			\xFA\x67\x2E\x0F\x01\x15\xBC\x7D		Cisco ASA MAINLDR
+
+#------------------------------------------------------------------------------
+#						A.OUT
+#
+#
+#	file offset:
+#	
+#	             0:  +-----------+
+#	                 |  header   | (length 32 bytes)
+#	            32:  +-----------+
+#	                 |           |
+#	                 |   text    | (length hdr.a_text)
+#	                 |           |
+#	32 + hdr.a_txt:  +-----------+
+#	                 |           |
+#	                 |   data    | (length hdr.a_data)
+#	                 |           |
+#	                 +-----------+
+#	
+#	              a.out binary format
+#
+#	struct a_out_header {
+#		unsigned long  a_midmag;   /* flags<<26 | mid<<16 | magic */
+#		unsigned long  a_text;     /* text segment size */
+#		unsigned long  a_data;     /* initialized data size */
+#		unsigned long  a_bss;      /* uninitialized data size */
+#		unsigned long  a_syms;     /* symbol table size */
+#		unsigned long  a_entry;    /* entry point */
+#		unsigned long  a_trsize;   /* text relocation size */
+#		unsigned long  a_drsize;   /* data relocation size */
+#	}
+#
+
+#------------------------------------------------------------------------------
+# Cisco ASA Kernel size and rootfs size - stubldr.o (a.out)
+#
+
+0		ulelong			0x0064010B			Cisco ASA STUBLDR,
+>4		ulelong			x					.text-size: 0x%X,
+>8		ulelong			x					.data-size: 0x%X,
+>12		ulelong			x					.bss-size: 0x%X,
+>16		ulelong			x					.syms-size: 0x%X,
+
+>20		ulelong			=0					{invalid}invalid entry point
+>20		ulelong			>0					entry: 0x%X,
+
+>24		ulelong			!0					{invalid}invalid trsize
+>24		ulelong			x					#trsize: 0x%X,
+
+>28		ulelong			!0					{invalid}invalid drsize
+>28		ulelong			x					#drsize: 0x%X,
+
+#>48		ulelong			!0					{invalid}
+>52		ulelong			!0					{invalid}
+>56		ulelong			!0					{invalid}
+>60		ulelong			!0					{invalid}
+
+#>64		ulelong			x					kernel_offset: 0x%X,
+
+>68		ulelong			!0					{invalid}invalid unknown_1
+#>68		ulelong			x					unknown_1: 0x%X,
+
+>72		ulelong			!0					{invalid}invalid unknown_2
+#>72		ulelong			x					unknown_2: 0x%X,
+
+>76		ulelong			!0					{invalid}invalid unknown_3
+#>76		ulelong			x					unknown_3: 0x%X,
+
+#>80		ulelong			x					unknown_4: 0x%X,
+>84		ulelong			x					kernel-size: 0x%X,
+>88		ulelong			x					rootfs-size: 0x%X
+
+#------------------------------------------------------------------------------
+# Cisco ASA a.out LE 32-bit executable (ZMAGIC) - firstldr.o and secondldr.o
+#
+
+0		ulelong			0x0064010B			Cisco ASA NEXTLDR,
+>4		ulelong			x					.text-size: 0x%X,
+>8		ulelong			x					.data-size: 0x%X,
+>12		ulelong			x					.bss-size: 0x%X,
+>16		ulelong			x					.syms-size: 0x%X,
+
+>20		ulelong			=0					{invalid}invalid entry point
+>20		ulelong			>0					entry: 0x%X
+
+>24		ulelong			!0					{invalid}invalid trsize
+#>24		ulelong			x					trsize: 0x%X,
+
+>28		ulelong			!0					{invalid}invalid drsize
+#>28		ulelong			x					drsize: 0x%X
+
+#------------------------------------------------------------------------------
+# Cisco ASA a.out LE 32-bit executable (Kernel Boot Loader) / NetBSD-a.out
+# 
+# The files boot.s and bootc.c;
+# 
+# Of these fields, the bootloader only uses a_text, a_data, and a_entry. The meaning of the 
+# first two should be clear from the diagrams above. a_entry is the link address of the binary.
+#
+
+0		ulelong			0x00000107			Cisco ASA BOOTLDR,
+>4		ulelong			x					.text-size: 0x%X,
+>8		ulelong			x					.data-size: 0x%X,
+>12		ulelong			x					.bss-size: 0x%X,
+>16		ulelong			x					.syms-size: 0x%X,
+
+>20		ulelong			=0					{invalid}invalid entry point
+>20		ulelong			>0					entry: 0x%X
+
+>24		ulelong			!0					{invalid}invalid trsize
+#>24		ulelong			x					trsize: 0x%X,
+
+>28		ulelong			!0					{invalid}invalid drsize
+#>28		ulelong			x					drsize: 0x%X
+
+#------------------------------------------------------------------------------
+# Cisco ASA vmlinuz
+#
+
+# current (2.6.x)
+
+0		ulelong			0xc00005ea			Cisco ASA vmlinuz (2.6.x),
+>514	string			!HdrS				{invalid}
+>560	ulelong			x 					kernel_alignment: 0x%X
+
+# old (2.4.x)
+
+0		ulelong			0x0008ea66			Cisco ASA vmlinuz (2.4.x),
+>4		ulelong			!0x07c00000			{invalid}invalid old asa-vmlinuz
+>514	string			!HdrS				{invalid}
+>560	ulelong			x 					kernel_alignment: 0x%X
+
+# last (3.x)
+
+0		uleshort		0x5a4d				Cisco ASA vmlinuz (3.x),
+>514	string			!HdrS				{invalid}
+>560	ulelong			x 					kernel_alignment: 0x%X
