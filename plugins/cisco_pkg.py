@@ -11,7 +11,7 @@ from Crypto.Cipher import AES
 from hashlib import sha256
 
 '''
-Plugin: Cisco Package File Extractor.
+Plugin: Cisco Package File
 File: ~/.config/binwalk/plugins/cisco_pkg.py
 Author: @nezlooy
 '''
@@ -25,7 +25,7 @@ PKG_HEADER_FORMAT = 'HiBB8s'
 PKG_HEADER_SIZE = calcsize(PKG_HEADER_FORMAT)
 
 # Section type 1 byte, section name 8 byte str, data size 4 bytes
-SEC_HEADER_FORMAT = 'B8si'
+SEC_HEADER_FORMAT = 'B11sI'
 SEC_HEADER_SIZE = calcsize(SEC_HEADER_FORMAT)
 
 BASE_PKG_TYPE = ord('r')
@@ -75,13 +75,14 @@ class Section(object):
 		self.name = self.name.decode().strip('\x00')
 		self.data_offset = self.offset + SEC_HEADER_SIZE
 		self.is_encryped = self.type == SECTION_TYPE_ENCRYPTED_ARCHIVE_TBZ2
-		self.data_size = self.size
+		self.data_size = self.real_size = self.size
 
 		if self.is_encryped:
-			self.data_size = unpack('<Q', str2bytes(fd.read(calcsize('Q'))))[0]
+			self.real_size = unpack('<Q', str2bytes(fd.read(calcsize('Q'))))[0]
 			self.vector = str2bytes(fd.read(16))
 			self.hash = str2bytes(fd.read(56))
 			self.data_offset = fd.tell()
+			self.data_size -= self.data_offset - self.offset - SEC_HEADER_SIZE
 
 		fd.seek(self.offset + SEC_HEADER_SIZE + self.size)
 
@@ -96,15 +97,17 @@ class Section(object):
 			self.origsize if self.is_encryped else self.size)
 
 
-class PkgFile(object):
+class PKGFile(object):
 	key = None
 	valid = True
 	chunksize = 0x10000
 
 	def __init__(self, fd):
-		super(PkgFile, self).__init__()
+		super(PKGFile, self).__init__()
 		self.fd = fd
-		_, self.version, self.num_sections, self.type, _ = unpack(PKG_HEADER_FORMAT, str2bytes(fd.read(PKG_HEADER_SIZE)))
+		magic, self.version, self.num_sections, self.type, _ = unpack(PKG_HEADER_FORMAT, str2bytes(fd.read(PKG_HEADER_SIZE)))
+		assert magic == MAGIC_NUMBER
+
 		self.sections = list(Section(fd) for _ in range(self.num_sections))
 		if self.type in [ENCRYPTED_CONTENT_CHECKSUM_PKG_TYPE, ENCRYPTED_CONTENT_SIGNED_CHECKSUM_PKG_TYPE]:
 			for sec in self.sections:
@@ -121,14 +124,11 @@ class PkgFile(object):
 			os.mkdir(out_dir)
 		except OSError:
 			return False
-
 		try:
 			result = call(['tar', '-xvf', tar_filename, '-C', out_dir], stderr=fperr, stdout=fperr)
 		except OSError:
 			result = -1
-
 		fperr.close()
-
 		return result == 0
 
 	def extract(self):
@@ -149,7 +149,6 @@ class PkgFile(object):
 						n += cz
 						if n > sec.data_size:
 							cz -= n - sec.data_size
-
 						chunk = str2bytes(self.fd.read(cz))
 						if sec.type == SECTION_TYPE_ENCRYPTED_ARCHIVE_TBZ2:
 							chunk = decryptor.decrypt(chunk)
@@ -188,11 +187,11 @@ class CiscoPkgExtractor(Plugin):
 			self.module.extractor.add_rule(txtrule=False, regex='^{}'.format(SIG_DESCRIPTION.lower()), extension='pkg', cmd=self.extractor)
 
 	def extractor(self, fname):
-		with PkgFile(self.module.config.open_file(abspath(fname))) as pkg:
+		with PKGFile(self.module.config.open_file(abspath(fname))) as pkg:
 			return pkg.extract()
 
 	def scan(self, result):
 		if result.valid and result.description.startswith(SIG_DESCRIPTION) and isinstance(result, SignatureResult):
 			fd = self.module.config.open_file(abspath(result.file.path), offset=result.offset)
-			with PkgFile(fd) as pkg:
+			with PKGFile(fd) as pkg:
 				result.jump = result.offset + pkg.size

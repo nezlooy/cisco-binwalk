@@ -1,0 +1,8 @@
+#------------------------------------------------------------------------------
+# File: ~/.config/binwalk/magic/cisco_csp
+# Author: @nezlooy
+#------------------------------------------------------------------------------
+
+0		string		\x08\x8F\x2A\x54\x79\x99\x44\xFC\x8E\x62\x9A\x01\x45\xAF\x56\xA5	Cisco CSP File,
+>16		ulelong		x																	flag: 0x%X,
+>17		byte		x																	csp version: %d

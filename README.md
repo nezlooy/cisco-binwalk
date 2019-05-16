@@ -1,7 +1,8 @@
 ## Supported formats
 
-* Cisco ASA (`.bin`)
-* Cisco PKG (`.pkg`)
+* ASA (`.bin`)
+* PKG (`.pkg`)
+* CSP (`.csp`)
 
 ## Installing
 
