@@ -112,12 +112,13 @@
 # 
 
 0		ubelong			0xC0C50000			Cisco Package File,
->9		byte			114					type: Base Package,
->9		byte			115					type: Basic Package,
->9		byte			116					type: Checksum Package,
->9		byte			117					type: Signed Checksum Package,
->9		byte			118					type: Encrypted Content Checksum Package,
->9		byte			119					type: Encrypted Content Signed Checksum Package,
+>9		byte			114					type: Base Package
+>9		byte			115					type: Basic Package
+>9		byte			116					type: Checksum Package
+>9		byte			117					type: Signed Checksum Package
+>9		byte			118					type: Encrypted Content Checksum Package
+>9		byte			119					type: Encrypted Content Signed Checksum Package
+>9		byte			x					[%d],
 >4		lelong			x					version: 0x%X,
 >8		byte			0					invalid number of sections,{invalid}
 >8		byte			x					num of sections: %d
