@@ -1,14 +1,14 @@
 from binwalk.core.compat import str2bytes, bytes2str
-from binwalk.core.common import unique_file_name
+from binwalk.core.common import unique_file_name, warning
 from binwalk.core.plugin import Plugin
 from binwalk.core.magic import SignatureResult
 
 import os, json
-from subprocess import call
-from os.path import abspath
+from subprocess import call, check_output, CalledProcessError
+from os.path import abspath, splitext, dirname, isfile, join
 from struct import unpack, calcsize
-# from Crypto.Cipher import AES
-# from hashlib import sha256
+from Crypto.Cipher import AES
+from hashlib import md5, sha256
 from collections import namedtuple
 
 '''
@@ -18,6 +18,7 @@ Author: @nezlooy
 '''
 
 SIG_DESCRIPTION = 'Cisco CSP File'
+ZL_CSP_v1_PWD_EXTRACTOR = 'csp_dec_unobf'
 
 
 CSP_SIGNATURE_GUID = b'\x08\x8F\x2A\x54\x79\x99\x44\xFC\x8E\x62\x9A\x01\x45\xAF\x56\xA5'
@@ -69,7 +70,9 @@ class Layout(object):
 
 
 class CSPFile(object):
-	chunksize = 0x10000
+	chunksize = AES.block_size * 1024
+	password = None
+	password_extractor = None
 
 	def __init__(self, fd, mod):
 		super(CSPFile, self).__init__()
@@ -109,16 +112,31 @@ class CSPFile(object):
 			CSP_LAYOUT_PASSWORD: filename + b'.pwd',
 			CSP_LAYOUT_METADATA: metadata_filename,
 			CSP_LAYOUT_METADATA_SIGN: metadata_filename + b'.sig',
-			CSP_LAYOUT_APPL: appl_filename, # b'.enc'
+			CSP_LAYOUT_APPL: appl_filename + b'.enc',
 			CSP_LAYOUT_SIGNATURE_ENVELOPE: filename + b'.sig'
 		}
 
 		for l in self.layout:
 			l.filename = layout_filenames.get(l.type, None)
 
-	def decrypt_v1(self, chunk):
-		# -- snip --
-		return chunk
+		self.password_extractor = join(dirname(__file__), ZL_CSP_v1_PWD_EXTRACTOR)
+		if not isfile(self.password_extractor):
+			warning('Invalid password extractor ({})'.format(self.password_extractor))
+			self.password_extractor = None
+
+	def decrypt_v1(self, in_filename, in_filesize, out_filename, key_length=32):
+		with open(in_filename, 'rb') as in_file, open(out_filename, 'wb') as out_file:
+			salt = in_file.read(AES.block_size)[len('Salted__'):]
+			key, iv = self.derive_key_and_iv(self.password, salt, key_length, AES.block_size)
+			cipher = AES.new(key, AES.MODE_CBC, iv)
+			n, cz = 0, self.chunksize
+			while n < in_filesize:
+				n += cz
+				if n > in_filesize:
+					cz -= n - in_filesize
+				chunk = str2bytes(in_file.read(cz))
+				chunk = cipher.decrypt(chunk)
+				out_file.write(chunk)
 
 	def description_v1(self):
 		metadata = json.loads(next(filter(lambda l: l.type == CSP_LAYOUT_METADATA, self.layout)).value)
@@ -131,6 +149,8 @@ class CSPFile(object):
 					metadata.get('APPLICATION_NAME', '').title(),
 					metadata.get('APPLICATION_VERSION', ''),
 					metadata.get('APPLICATION_BUILD_DATE', ''))
+			if self.password is not None:
+				msg += '\n{pad}AES Key: {}'.format(self.password, pad='\x00' * len(self.verbose_offset))
 		return msg
 
 	def extract_v1(self):
@@ -144,12 +164,33 @@ class CSPFile(object):
 						n += cz
 						if n > l.size:
 							cz -= n - l.size
-						chunk = str2bytes(self.fd.read(cz))
-						if l.type == CSP_LAYOUT_APPL:
-							chunk = self.decrypt_v1(chunk)
-						out_fd.write(chunk)
+						out_fd.write(str2bytes(self.fd.read(cz)))
+
+				if self.password_extractor is not None:
+					if l.type == CSP_LAYOUT_PASSWORD:
+						try:
+							self.password = check_output([self.password_extractor, l.filename])
+						except CalledProcessError as e:
+							warning(str(e))
+
+					elif l.type == CSP_LAYOUT_APPL:
+						if self.password is None:
+							warning('Password wasn\'t extracted')
+							continue
+
+						app_out_filename = splitext(out_filename)[0]
+						self.decrypt_v1(out_filename, l.size, app_out_filename)
+						os.unlink(out_filename)
+						self.untar(app_out_filename, splitext(app_out_filename)[0])
 
 	# base methods
+
+	def derive_key_and_iv(self, password, salt, key_length, iv_length):
+		d = d_i = b''
+		while len(d) < key_length + iv_length:
+			d_i = md5(d_i + password + salt).digest()
+			d += d_i
+		return d[:key_length], d[key_length:key_length + iv_length]
 
 	def untar(self, tar_filename, out_dir):
 		result = None
@@ -173,7 +214,7 @@ class CSPFile(object):
 			(getattr(self, 'description_v{:d}'.format(self.version), lambda: '')() if self.verbose else '')
 
 	def unsupported_csp(self):
-		raise Exception('Unsupported CSP version {}'.format(self.version))
+		warning('Unsupported CSP version {}'.format(self.version))
 
 	def extract(self):
 		return getattr(self, 'extract_v{:d}'.format(self.version), self.unsupported_csp)()
